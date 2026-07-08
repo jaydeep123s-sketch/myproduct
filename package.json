@@ -1,0 +1,15 @@
+{
+  "name": "kabir-ai-v29",
+  "version": "29.0.0",
+  "description": "Kabir AI \u2014 Stealth Interview Assistant (v2.3 all bugs fixed)",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build-win": "electron-packager . KabirAI --platform=win32 --arch=x64 --out=dist --overwrite --win32metadata.ProductName=KabirAI",
+    "build-mac": "electron-packager . KabirAI --platform=darwin --arch=arm64 --out=dist --overwrite"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-packager": "^17.1.2"
+  }
+}

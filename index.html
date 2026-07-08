@@ -1,0 +1,1595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Kabir AI</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+
+:root {
+  --green:  #00ff88;
+  --cyan:   #00e5ff;
+  --amber:  #ffb300;
+  --red:    #ff4444;
+  --purple: #a855f7;
+  --bg:      rgba(10,10,14,0.88);
+  --surf:    rgba(255,255,255,0.05);
+  --bord:    rgba(255,255,255,0.09);
+  --text:    #e8eaed;
+  --muted:  #606470;
+  --mono:    'Cascadia Code','SF Mono','Consolas',monospace;
+  --fs:      12.5px;
+  --sans:    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+html,body { width:100%;height:100%;overflow:hidden;background:transparent; }
+
+#app {
+  width:100%;height:100%;
+  background:var(--bg);
+  border:1px solid rgba(255,255,255,0.10);
+  border-radius:12px;
+  display:flex;flex-direction:column;
+  font-family:var(--mono);
+  color:var(--text);
+  overflow:hidden;
+  backdrop-filter:blur(28px) saturate(1.4);
+  -webkit-backdrop-filter:blur(28px) saturate(1.4);
+  box-shadow:0 24px 56px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.08);
+  position:relative;
+}
+
+#app::before {
+  content:'';position:absolute;inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(255,255,255,0.008) 2px,rgba(255,255,255,0.008) 4px);
+  pointer-events:none;border-radius:12px;z-index:0;
+}
+
+/* ── TITLEBAR ── */
+#titlebar {
+  display:flex;align-items:center;gap:8px;
+  padding:7px 12px;
+  background:rgba(255,255,255,0.03);
+  border-bottom:1px solid rgba(255,255,255,0.07);
+  -webkit-app-region:drag;
+  flex-shrink:0;position:relative;z-index:2;
+  user-select:none;
+}
+.dot { width:9px;height:9px;border-radius:50%;flex-shrink:0; }
+.dg { background:var(--green);box-shadow:0 0 5px var(--green); }
+.dy { background:var(--amber); }
+.dr { background:var(--red); }
+#brand { font-size:11px;font-weight:600;letter-spacing:.14em;color:#ffffff;flex:1;text-transform:uppercase; }
+
+#statusBadge {
+  font-size:9.5px;padding:2px 8px;border-radius:4px;
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.10);
+  color:rgba(255,255,255,0.45);
+  letter-spacing:.10em;text-transform:uppercase;transition:all .25s;
+}
+#statusBadge.listening    { background:rgba(0,229,255,0.08);border-color:rgba(0,229,255,0.25);color:var(--cyan); }
+#statusBadge.transcribing { background:rgba(255,179,0,0.08);border-color:rgba(255,179,0,0.25);color:var(--amber);animation:pulse .9s infinite; }
+#statusBadge.generating   { background:rgba(168,85,247,0.08);border-color:rgba(168,85,247,0.25);color:var(--purple);animation:pulse .6s infinite; }
+#statusBadge.error        { background:rgba(255,68,68,0.08);border-color:rgba(255,68,68,0.25);color:var(--red); }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:.35} }
+
+.tb-btn {
+  -webkit-app-region:no-drag;
+  background:none;border:none;color:var(--muted);
+  cursor:pointer;font-size:13px;padding:3px 6px;
+  border-radius:4px;transition:color .18s;font-family:var(--mono);
+}
+.tb-btn:hover { color:var(--text); }
+.tb-btn.on    { color:var(--green); }
+
+/* ── CONTROLS ── */
+#controls {
+  display:flex;align-items:center;gap:6px;
+  padding:6px 12px;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+  flex-shrink:0;-webkit-app-region:no-drag;
+  position:relative;z-index:2;
+}
+.cbtn {
+  display:flex;align-items:center;gap:4px;
+  padding:4px 10px;border-radius:5px;
+  border:1px solid rgba(255,255,255,0.09);
+  background:var(--surf);color:var(--muted);
+  font-size:11px;font-family:var(--mono);
+  cursor:pointer;transition:all .18s;
+  -webkit-app-region:no-drag;white-space:nowrap;
+}
+.cbtn:hover     { border-color:var(--green);color:var(--green); }
+.cbtn.active    { border-color:var(--cyan);color:var(--cyan);background:rgba(0,229,255,0.07); }
+.cbtn.spinning  { border-color:var(--amber);color:var(--amber); }
+
+#opSlider {
+  -webkit-appearance:none;width:56px;height:3px;
+  border-radius:2px;background:rgba(255,255,255,0.13);
+  outline:none;cursor:pointer;margin-left:auto;flex-shrink:0;
+}
+#opSlider::-webkit-slider-thumb {
+  -webkit-appearance:none;width:11px;height:11px;
+  border-radius:50%;background:var(--green);cursor:pointer;
+}
+
+#fsLabel { font-size:9px;color:var(--muted);margin-left:4px; }
+#fsBtn { font-size:10px;padding:3px 7px; color:var(--cyan); border:1px solid rgba(0,229,255,0.15); border-radius:4px; }
+
+/* ── QUESTION ── */
+#qWrap {
+  padding:6px 12px;
+  border-bottom:1px solid rgba(255,255,255,0.045);
+  flex-shrink:0;min-height:26px;
+  position:relative;z-index:1;
+}
+#qText {
+  font-size:11px;color:var(--cyan);line-height:1.45;
+  white-space:pre-wrap;word-break:break-word;
+}
+#qText::before { content:'Q › ';color:var(--muted);font-size:10px; }
+
+/* ── ANSWER ── */
+#aWrap {
+  flex:1;overflow-y:auto;
+  min-height:0;
+  padding:12px 14px 22px;
+  position:relative;z-index:1;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(255,255,255,0.14) transparent;
+  scroll-behavior:smooth;
+}
+#aWrap::-webkit-scrollbar { width:3px; }
+#aWrap::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.18);border-radius:2px; }
+
+/* Archived answers — NO box/border, same readability as current answer (Cluely style) */
+#qaStack { display:flex;flex-direction:column;gap:0;margin-bottom:0; }
+
+.qa-item {
+  padding:18px 0 22px;
+  margin-bottom:0;
+  animation:qaIn .28s ease-out;
+  position:relative;
+}
+
+/* Cluely-style bottom fade divider */
+.qa-item::after {
+  content:'';
+  display:block;
+  margin-top:18px;
+  height:1px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.08) 15%,rgba(255,255,255,0.08) 85%,transparent);
+}
+
+.qa-divider-label {
+  display:flex;
+  align-items:center;
+  gap:6px;
+  margin:0 0 14px;
+  opacity:.45;
+}
+.qa-divider-label::before,
+.qa-divider-label::after {
+  content:'';
+  flex:1;
+  height:1px;
+  background:rgba(255,255,255,0.12);
+}
+.qa-divider-label span {
+  font-size:9px;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.5);
+  white-space:nowrap;
+  font-family:'Inter',sans-serif;
+}
+
+@keyframes qaIn {
+  from { opacity:0; transform:translateY(6px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+.qa-item-q {
+  font-size:10px;color:rgba(255,255,255,0.32);
+  margin-bottom:8px;white-space:pre-wrap;word-break:break-word;
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  letter-spacing:0.01em;
+}
+.qa-item-q::before { content:''; }
+
+/* ── Screen Capture Overlay (Cluely style) ── */
+#screenOverlay {
+  display:none;
+  position:fixed;inset:0;
+  background:rgba(0,0,0,0.72);
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  z-index:9999;
+  align-items:center;
+  justify-content:center;
+  flex-direction:column;
+  gap:14px;
+}
+#screenOverlay.visible { display:flex; }
+.so-ring {
+  width:36px;height:36px;
+  border:2px solid rgba(255,255,255,0.12);
+  border-top-color:rgba(255,255,255,0.7);
+  border-radius:50%;
+  animation:soSpin .8s linear infinite;
+}
+@keyframes soSpin { to { transform:rotate(360deg); } }
+.so-label {
+  font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  color:rgba(255,255,255,0.55);
+  font-family:'Inter',sans-serif;
+  animation:soPulse 1.6s ease-in-out infinite;
+}
+@keyframes soPulse { 0%,100%{opacity:.55;} 50%{opacity:.9;} }
+.qa-item-a {
+  font-size:var(--fs);line-height:1.72;color:#ffffff;
+  white-space:pre-wrap;word-break:break-word;
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  font-weight:400;letter-spacing:0.01em;
+}
+
+#aText {
+  font-size:var(--fs);line-height:1.72;color:#ffffff;
+  white-space:pre-wrap;word-break:break-word;
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  font-weight:400;letter-spacing:0.01em;
+  text-shadow:none;
+  transition: font-size 0.1s ease-out;
+}
+
+#aText .md-code {
+  display:block;background:rgba(0,0,0,0.55);
+  border:1px solid rgba(255,255,255,0.12);
+  border-radius:6px;padding:10px 12px;margin:8px 0;
+  font-size:11.5px;overflow-x:auto;white-space:pre;
+  font-family:'Cascadia Code','SF Mono','Consolas',monospace;
+  color:#e0e0e0;
+}
+#aText .md-inline { background:rgba(0,0,0,0.35);border-radius:3px;padding:1px 4px;font-size:.92em;font-family:var(--mono); }
+#aText .md-bold   { color:#ffffff;font-weight:700;letter-spacing:0.005em; }
+#aText .md-li::before { content:'▸ ';color:var(--green); }
+#aText .md-num { color:var(--cyan);font-weight:600; }
+#aText .md-h2  { display:block;color:var(--amber);font-weight:700;font-size:13px;margin:10px 0 4px;letter-spacing:0.03em; }
+#aText em      { color:#c9d1d9;font-style:italic; }
+
+#cursor {
+  display:inline-block;width:7px;height:13px;
+  background:var(--green);margin-left:1px;
+  vertical-align:text-bottom;
+  animation:blink 1s step-end infinite;
+}
+@keyframes blink { 0%,100%{opacity:1}50%{opacity:0} }
+#cursor.hidden { display:none; }
+
+#retryBtn {
+  display:none;margin-top:14px;padding:0;
+  border:none;background:none;
+  color:rgba(255,255,255,0.32);
+  font-size:11px;font-family:'Inter',-apple-system,sans-serif;
+  cursor:pointer;letter-spacing:0.02em;
+  transition:color .18s;
+}
+#retryBtn.visible { display:block; }
+#retryBtn:hover   { color:rgba(255,255,255,0.7); }
+
+/* ── HISTORY ── */
+#histPanel {
+  display:none;flex:1;overflow-y:auto;
+  padding:8px 12px;position:relative;z-index:1;
+  scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.14) transparent;
+}
+#histPanel.visible { display:block; }
+.hi { margin-bottom:12px;border-left:2px solid rgba(0,229,255,0.28);padding-left:8px; }
+.hi-q  { font-size:10px;color:var(--cyan);margin-bottom:3px;cursor:pointer; }
+.hi-q:hover { color:#fff; }
+.hi-a  { font-size:11px;color:var(--muted);line-height:1.5; }
+.hi-t  { font-size:9px;color:rgba(86,100,115,0.5);margin-top:2px; }
+
+/* ── INPUT ROW ── */
+#inputRow {
+  display:flex;gap:5px;padding:6px 10px;
+  border-top:1px solid rgba(255,255,255,0.055);
+  flex-shrink:0;-webkit-app-region:no-drag;
+  position:relative;z-index:2;
+}
+#devSelect {
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.09);
+  border-radius:5px;padding:4px 6px;
+  color:var(--text);font-size:10px;font-family:var(--mono);
+  outline:none;cursor:pointer;max-width:110px;
+  transition:border-color .18s;
+}
+#devSelect:focus { border-color:rgba(255,255,255,0.21); }
+#devSelect option { background:#0e0e14; }
+
+#manIn {
+  flex:1;background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.09);
+  border-radius:5px;padding:5px 9px;
+  color:var(--text);font-size:11.5px;font-family:var(--mono);
+  outline:none;transition:border-color .18s;
+}
+#manIn:focus      { border-color:rgba(255,255,255,0.23); }
+#manIn::placeholder { color:var(--muted); }
+
+#copyBtn {
+  padding:5px 9px;border-radius:5px;
+  border:1px solid rgba(255,255,255,0.09);
+  background:var(--surf);color:var(--muted);
+  font-size:11px;font-family:var(--mono);
+  cursor:pointer;transition:all .18s;
+}
+#copyBtn:hover { border-color:var(--amber);color:var(--amber); }
+
+#sendBtn {
+  padding:5px 12px;border-radius:5px;
+  border:1px solid var(--green);
+  background:rgba(255,255,255,0.04);
+  color:var(--green);font-size:11px;font-family:var(--mono);
+  cursor:pointer;transition:all .18s;
+}
+#sendBtn:hover { background:rgba(255,255,255,0.10); }
+
+/* ── SETTINGS PANEL ── */
+#settPanel {
+  display:none;position:absolute;inset:0;
+  background:rgba(8,8,14,0.97);z-index:100;
+  overflow-y:auto;padding:14px;border-radius:12px;
+  scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.14) transparent;
+}
+#settPanel.visible { display:block; }
+.s-title {
+  font-size:11px;color:var(--green);
+  letter-spacing:.14em;text-transform:uppercase;
+  margin-bottom:14px;display:flex;
+  align-items:center;justify-content:space-between;
+}
+.s-sec  { margin-bottom:14px; }
+.s-lbl  { font-size:10px;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;margin-bottom:5px; }
+.s-inp  {
+  width:100%;background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.09);
+  border-radius:5px;padding:6px 9px;
+  color:var(--text);font-size:11px;font-family:var(--mono);
+  outline:none;margin-bottom:5px;
+  transition:border-color .18s;
+}
+.s-inp:focus { border-color:rgba(255,255,255,0.23); }
+.s-ta  { min-height:80px;resize:vertical; }
+.key-row { display:flex;gap:5px;align-items:center;margin-bottom:5px; }
+.key-row .s-inp { margin-bottom:0;flex:1; }
+.test-btn {
+  padding:5px 9px;border-radius:5px;
+  border:1px solid rgba(255,255,255,0.09);
+  background:var(--surf);color:var(--muted);
+  font-size:10px;font-family:var(--mono);cursor:pointer;
+  white-space:nowrap;transition:all .18s;flex-shrink:0;
+}
+.test-btn:hover { border-color:var(--green);color:var(--green); }
+.test-btn.ok  { border-color:var(--green);color:var(--green); }
+.test-btn.bad { border-color:var(--red);color:var(--red); }
+
+/* FIX #9: Screen selector overlay */
+#screenPicker {
+  display:none;position:absolute;inset:0;
+  background:rgba(8,8,14,0.97);z-index:200;
+  padding:14px;border-radius:12px;overflow-y:auto;
+}
+#screenPicker.visible { display:flex;flex-direction:column;gap:8px; }
+#screenPicker .sp-title { font-size:11px;color:var(--green);letter-spacing:.14em;text-transform:uppercase;margin-bottom:6px; }
+.sp-item {
+  display:flex;align-items:center;gap:10px;padding:8px 10px;
+  border:1px solid rgba(255,255,255,0.09);border-radius:6px;
+  background:var(--surf);cursor:pointer;transition:all .18s;
+}
+.sp-item:hover { border-color:var(--cyan);background:rgba(0,229,255,0.06); }
+.sp-thumb { width:80px;height:45px;object-fit:cover;border-radius:3px;border:1px solid rgba(255,255,255,0.08); }
+.sp-name  { font-size:11px;color:var(--text); }
+.sp-cancel {
+  margin-top:4px;padding:6px;border-radius:5px;
+  border:1px solid rgba(255,68,68,0.3);color:var(--red);
+  background:rgba(255,68,68,0.06);font-size:11px;
+  font-family:var(--mono);cursor:pointer;text-align:center;
+  transition:all .18s;
+}
+.sp-cancel:hover { background:rgba(255,68,68,0.14); }
+
+/* FIX #9: Silence threshold slider in settings */
+.s-slider-row { display:flex;align-items:center;gap:8px;margin-bottom:5px; }
+.s-slider {
+  flex:1;-webkit-appearance:none;height:3px;
+  border-radius:2px;background:rgba(255,255,255,0.13);
+  outline:none;cursor:pointer;
+}
+.s-slider::-webkit-slider-thumb {
+  -webkit-appearance:none;width:12px;height:12px;
+  border-radius:50%;background:var(--cyan);cursor:pointer;
+}
+.s-slider-val { font-size:10px;color:var(--cyan);min-width:28px;text-align:right; }
+
+.save-btn {
+  width:100%;padding:8px;border-radius:5px;
+  border:1px solid var(--green);
+  background:rgba(255,255,255,0.05);color:var(--green);
+  font-size:12px;font-family:var(--mono);
+  cursor:pointer;letter-spacing:.07em;transition:all .18s;
+}
+.save-btn:hover { background:rgba(255,255,255,0.11); }
+
+/* ── TOAST ── */
+#toast {
+  position:absolute;top:46px;left:50%;
+  transform:translateX(-50%);
+  background:rgba(255,255,255,0.08);
+  border:1px solid rgba(255,255,255,0.30);
+  border-radius:5px;padding:4px 14px;
+  font-size:10px;color:var(--green);
+  z-index:300;opacity:0;
+  transition:opacity .2s;pointer-events:none;white-space:nowrap;
+}
+#toast.err  { background:rgba(255,68,68,0.13);border-color:rgba(255,68,68,0.5);color:var(--red); }
+#toast.show { opacity:1; }
+
+/* ── HOTKEY BAR ── */
+#hkHint {
+  position:absolute;bottom:5px;right:10px;
+  font-size:9px;color:rgba(86,100,115,0.35);
+  z-index:1;pointer-events:none;letter-spacing:.04em;
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="titlebar">
+    <span class="dot dg"></span>
+    <span class="dot dy"></span>
+    <span class="dot dr"></span>
+    <span id="brand">⬡ Kabir AI</span>
+    <span id="statusBadge">READY</span>
+    <button class="tb-btn" id="histBtn" onclick="toggleHistory()" title="History (H)">⧉</button>
+    <button class="tb-btn" id="settBtn" onclick="toggleSettings()" title="Settings">⚙</button>
+    <button class="tb-btn" onclick="ipcRenderer.send('hide-window')" title="Hide (Ctrl+Shift+H)">✕</button>
+  </div>
+
+  <div id="controls">
+    <button class="cbtn" id="micBtn" onclick="toggleMic()">◉ <span id="micLbl">Listen</span></button>
+    <button class="cbtn" onclick="triggerScreenshot()" title="Ctrl+Shift+S">⊞ Screen</button>
+    <button class="cbtn" onclick="clearAll()">✕ Clear</button>
+    <span id="fsLabel">Aa</span>
+    <button class="tb-btn" id="fsBtn" onclick="cycleFontSize()" title="Font size">12.5px</button>
+    <span style="font-size:9px;color:var(--muted);margin-left:4px;">α</span>
+    <input type="range" id="opSlider" min="15" max="100" value="92" step="1" oninput="setOpacity(this.value)">
+  </div>
+
+  <div id="qWrap"><div id="qText"></div></div>
+
+  <div id="aWrap">
+    <div id="qaStack"></div>
+    <div id="aText"></div>
+    <span id="cursor" class="hidden"></span>
+    <button id="retryBtn" onclick="retryLast()">↺ Retry</button>
+  </div>
+
+  <div id="histPanel"></div>
+
+  <div id="inputRow">
+    <select id="devSelect" title="Audio input device" onchange="switchDevice()"><option value="">Default Mic</option></select>
+    <input id="manIn" type="text" placeholder="Type question… (Enter)" onkeydown="if(event.key==='Enter')submitManual()">
+    <button id="copyBtn" onclick="copyAnswer()" title="Copy (Ctrl+Shift+C)">⎘</button>
+    <button id="sendBtn" onclick="submitManual()">Send →</button>
+  </div>
+
+  <!-- Settings panel -->
+  <div id="settPanel">
+    <div class="s-title">
+      ⚙ Settings
+      <button class="tb-btn" onclick="toggleSettings()">✕</button>
+    </div>
+
+    <div class="s-sec">
+      <div class="s-lbl">Groq API Keys — up to 5, auto-rotated</div>
+      <div id="keyRows"></div>
+    </div>
+
+    <div class="s-sec">
+      <div class="s-lbl">OpenAI Fallback Key</div>
+      <input class="s-inp" id="oaiKey" type="password" placeholder="sk-... (optional fallback)">
+    </div>
+
+    <div class="s-sec">
+      <div class="s-lbl">Your Name</div>
+      <input class="s-inp" id="sName" placeholder="e.g. Jaydeep Muneswar">
+    </div>
+
+    <div class="s-sec">
+      <div class="s-lbl">Resume / Skills Summary</div>
+      <textarea class="s-inp s-ta" id="sResume" placeholder="Paste your key skills, experience, stack…"></textarea>
+    </div>
+
+    <div class="s-sec">
+      <div class="s-lbl">AI Persona Prompt</div>
+      <textarea class="s-inp s-ta" id="sPersona" placeholder="You are {name}…"></textarea>
+    </div>
+
+    <div class="s-sec">
+      <div class="s-lbl">Answer length (words)</div>
+      <input class="s-inp" id="sWords" type="number" min="50" max="500" value="150" placeholder="150">
+    </div>
+
+    <!-- FIX #9: Silence threshold control -->
+    <div class="s-sec">
+      <div class="s-lbl">Mic Sensitivity — silence threshold (dB)</div>
+      <div class="s-slider-row">
+        <input class="s-slider" id="sThreshold" type="range" min="-70" max="-20" step="1" value="-50"
+               oninput="document.getElementById('sThreshVal').textContent=this.value+'dB'">
+        <span class="s-slider-val" id="sThreshVal">-50dB</span>
+      </div>
+      <div style="font-size:9px;color:var(--muted);margin-top:2px;">
+        Lower = more sensitive (picks up soft speech). Higher = ignore background noise.
+      </div>
+    </div>
+
+    <button class="save-btn" onclick="saveSettings()">✓ Save & Close</button>
+  </div>
+
+  <!-- FIX #11: Screen picker for multi-monitor -->
+  <div id="screenPicker">
+    <div class="sp-title">⊞ Select Screen to Capture</div>
+    <div id="spList"></div>
+    <div class="sp-cancel" onclick="closeScreenPicker()">✕ Cancel</div>
+  </div>
+
+  <div id="toast"></div>
+  <div id="hkHint">Ctrl+Shift+H hide · L mic · S screen · C copy</div>
+
+</div>
+
+<script>
+'use strict'
+const { ipcRenderer } = require('electron')
+
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+let groqKeys    = []
+let openaiKey   = ''
+let candName    = ''
+let resumeTxt   = ''
+let personaTpl  = ''
+// ─── STABILITY WATCHDOG ───
+let watchdogTimer = null
+let watchdogRestartCount = 0
+
+
+let maxWords    = 150
+const rateLimited = new Set()
+
+// FIX #4: validKeyIdx — sirf valid keys ke andar rotate karo
+let validKeyIdx = 0
+
+// FIX #9: silenceThreshold user-configurable
+let silenceThreshold = -50
+
+let history      = []
+let lastQ        = ''
+let lastA        = ''
+let answerBuf    = ''
+let isProcessing = false
+
+// FIX: streaming render ab requestAnimationFrame se batch hoti hai —
+// har token par alag-alag jhatka/jump na ho, Cluely jaisa smooth flow mile
+let renderScheduled = false
+
+let isListening      = false
+let activeStream     = null
+let audioContext     = null
+let streamSource     = null
+let scriptProcessor  = null
+let mediaRecorder    = null
+
+// FIX #3: lock to prevent race condition on chunk flush
+let isFlushLocked    = false
+let collectedChunks  = []
+
+let silTimer         = null
+
+// FIX #1: VAD state machine — proper 3-state
+// 'silent' | 'speaking' | 'endingSpeech'
+let vadState = 'silent'
+
+let isHistVisible = false
+let isSettVisible = false
+let fontSizeIdx   = 1
+const fontSizes   = ['11px','12.5px','14px','15.5px']
+
+let toastTimer = null
+
+// FIX #5: storage key versioned as v23
+const STORAGE_KEY = 'kabir_v23'
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+window.onload = () => {
+  buildKeyRows()
+  loadSettings()
+  setupIPC()
+  populateDevices()
+  loadHistory()   // FIX #12: history localStorage se restore karo
+  startStabilityWatchdog()
+}
+
+function setupIPC() {
+  ipcRenderer.on('toggle-listen',      () => toggleMic())
+  ipcRenderer.on('copy-answer',        () => copyAnswer())
+  ipcRenderer.on('trigger-screenshot', () => triggerScreenshot())
+}
+
+// ═══════════════════════════════════════════
+// SETTINGS
+// ═══════════════════════════════════════════
+function loadSettings() {
+  try {
+    // FIX #5: v23 key use karo; agar v23 nahi mila toh v22/v21 se migrate karo
+    let raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) {
+      // Migration: v22 ya v21 data carry-forward
+      raw = localStorage.getItem('kabir_v22') || localStorage.getItem('kabir_v21') || '{}'
+      if (raw !== '{}') showToast('Settings migrated from previous version')
+    }
+    const s = JSON.parse(raw)
+
+    groqKeys         = Array.isArray(s.groqKeys) ? s.groqKeys : []
+    openaiKey        = s.openaiKey  || ''
+    candName         = s.candName   || ''
+    resumeTxt        = s.resumeTxt  || ''
+    personaTpl       = s.personaTpl || ''
+    maxWords         = parseInt(s.maxWords) || 150
+    silenceThreshold = parseInt(s.silenceThreshold) || -50
+
+    const oaiEl      = document.getElementById('oaiKey');      if (oaiEl)      oaiEl.value      = openaiKey
+    const nameEl     = document.getElementById('sName');       if (nameEl)     nameEl.value     = candName
+    const resumeEl   = document.getElementById('sResume');     if (resumeEl)   resumeEl.value   = resumeTxt
+    const personaEl  = document.getElementById('sPersona');    if (personaEl)  personaEl.value  = personaTpl || getDefaultPersona()
+    const wordsEl    = document.getElementById('sWords');      if (wordsEl)    wordsEl.value    = maxWords
+    const threshEl   = document.getElementById('sThreshold');  if (threshEl)   threshEl.value   = silenceThreshold
+    const threshValEl= document.getElementById('sThreshVal');  if (threshValEl) threshValEl.textContent = silenceThreshold + 'dB'
+
+    for (let i = 0; i < 5; i++) {
+      const el = document.getElementById('gkey' + i)
+      if (el) el.value = groqKeys[i] || ''
+    }
+
+    const fsBtnEl = document.getElementById('fsBtn')
+    if (fsBtnEl) fsBtnEl.textContent = fontSizes[fontSizeIdx]
+
+  } catch(e) { console.error('loadSettings:', e) }
+}
+
+function saveSettings() {
+  try {
+    groqKeys = []
+    for (let i = 0; i < 5; i++) {
+      const v = (document.getElementById('gkey' + i)?.value || '').trim()
+      if (v) groqKeys.push(v)
+    }
+    openaiKey        = (document.getElementById('oaiKey')?.value || '').trim()
+    candName         = (document.getElementById('sName')?.value || '').trim()
+    resumeTxt        = (document.getElementById('sResume')?.value || '').trim()
+    personaTpl       = (document.getElementById('sPersona')?.value || '').trim()
+    maxWords         = parseInt(document.getElementById('sWords')?.value) || 150
+    silenceThreshold = parseInt(document.getElementById('sThreshold')?.value) || -50
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      groqKeys, openaiKey, candName, resumeTxt,
+      personaTpl, maxWords, silenceThreshold
+    }))
+    closeSettings()
+    showToast('Settings saved ✓')
+  } catch(e) {
+    console.error('saveSettings:', e)
+    showToast('Save failed!', true)
+  }
+}
+
+function buildKeyRows() {
+  const wrap = document.getElementById('keyRows')
+  if (!wrap) return
+  wrap.innerHTML = ''
+  for (let i = 0; i < 5; i++) {
+    const row = document.createElement('div')
+    row.className = 'key-row'
+    row.innerHTML = `
+      <input class="s-inp" id="gkey${i}" type="password" placeholder="gsk_key_${i+1}${i===0?' (required)':' (optional)'}">
+      <button class="test-btn" onclick="testKey(${i})">Test</button>
+    `
+    wrap.appendChild(row)
+  }
+}
+
+async function testKey(idx) {
+  const el  = document.getElementById('gkey' + idx)
+  const key = el?.value?.trim()
+  if (!key) return
+  const btns = document.querySelectorAll('.test-btn')
+  const btn  = btns[idx]
+  if (!btn) return
+  btn.textContent = '...'
+  try {
+    const r = await fetch('https://api.groq.com/openai/v1/models', {
+      headers: { 'Authorization': 'Bearer ' + key }
+    })
+    btn.textContent = r.ok ? '✓ OK' : '✗ Bad'
+    btn.className   = 'test-btn ' + (r.ok ? 'ok' : 'bad')
+  } catch(e) {
+    btn.textContent = '✗ Err'
+    btn.className   = 'test-btn bad'
+  }
+  setTimeout(() => { btn.textContent = 'Test'; btn.className = 'test-btn' }, 3000)
+}
+
+function getDefaultPersona() {
+  const n = candName || 'a senior engineer'
+  const r = resumeTxt || 'Experienced software/DevOps engineer with strong technical background.'
+  return `You are ${n} being interviewed for an engineering role.\nBackground: ${r}\nAnswer interview questions concisely and confidently. Keep answers under ${maxWords} words unless technical depth is needed. Use first person. Do not mention you are an AI. Be specific with examples from your experience.`
+}
+
+// ═══════════════════════════════════════════
+// FIX #4: KEY MANAGEMENT — correct round-robin
+// ═══════════════════════════════════════════
+function getValidKeys() {
+  const valid = groqKeys.filter(k => k && !rateLimited.has(k))
+  // agar sab rate limited hain toh sabko reset karo aur retry
+  if (!valid.length) {
+    rateLimited.clear()
+    return groqKeys.filter(k => k)
+  }
+  return valid
+}
+
+function getNextKey() {
+  const valid = getValidKeys()
+  if (!valid.length) return ''
+  const k = valid[validKeyIdx % valid.length]
+  validKeyIdx = (validKeyIdx + 1) % valid.length  // FIX: valid.length ke andar hi rotate
+  return k
+}
+
+function getAvailableKeys() {
+  return getValidKeys()
+}
+
+function markRateLimited(key) {
+  rateLimited.add(key)
+  setTimeout(() => rateLimited.delete(key), 65000)
+  showToast('Key rate limited — rotating…')
+}
+
+function startStabilityWatchdog() {
+  if (watchdogTimer) clearInterval(watchdogTimer)
+  watchdogTimer = setInterval(async () => {
+    watchdogRestartCount++
+    console.log('[Watchdog] Pipeline refresh #' + watchdogRestartCount)
+    // Agar actively sun raha hai toh pipeline restart karo
+    if (isListening) {
+      try {
+        stopListening()
+        await new Promise(r => setTimeout(r, 600))
+        await startListening()
+        showToast('Pipeline refreshed ✓')
+      } catch(e) {
+        console.error('[Watchdog] restart failed:', e)
+      }
+    }
+    // rateLimited set clear karo taaki stale bans na rakhe
+    rateLimited.clear()
+    validKeyIdx = 0
+  }, 45 * 60 * 1000) // 45 minutes
+}
+
+function detectQuestionType(q) {
+  const ql = q.toLowerCase()
+  if (/write|code|implement|function|algorithm|script|program|debug|fix this|what.*output|complexity/i.test(q)) return 'coding'
+  if (/design|architect|scale|system|how would you build|million users|high.?availability|microservice/i.test(q)) return 'design'
+  if (/tell me about a time|describe a situation|how do you handle|give.*example|have you ever|conflict|challenge|failure|success|difficult/i.test(q)) return 'behavioral'
+  if (/what is|explain|difference between|how does|why do|define|what.*mean|what.*know about/i.test(q)) return 'concept'
+  return 'general'
+}
+
+function getTypeHint(type) {
+  const hints = {
+    coding:    '\n\n[FORMAT: Working code with brief think-aloud. Note complexity + edge cases.]',
+    design:    '\n\n[FORMAT: Think out loud. Cover components, data flow, failure modes, scale. Be opinionated on tech choices.]',
+    behavioral:'\n\n[FORMAT: Natural STAR story — real numbers, show ownership, sound like recalling a memory not reading a script.]',
+    concept:   '\n\n[FORMAT: Crisp definition first, then real production example. Mention tradeoffs. Under 90 seconds.]',
+  }
+  return hints[type] || '\n\n[FORMAT: Concise, confident, direct. Real examples where relevant.]'
+}
+
+function showScreenOverlay(v) {
+  const el = document.getElementById('screenOverlay')
+  if (!el) return
+  el.classList.toggle('visible', v)
+}
+
+
+// ═══════════════════════════════════════════
+// AUDIO — VAD PIPELINE (all 3 bugs fixed)
+// ═══════════════════════════════════════════
+async function populateDevices() {
+  try {
+    const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    tempStream.getTracks().forEach(t => t.stop())
+
+    const devices = await navigator.mediaDevices.enumerateDevices()
+    const inputs  = devices.filter(d => d.kind === 'audioinput')
+    const sel     = document.getElementById('devSelect')
+    if (!sel) return
+    sel.innerHTML = ''
+
+    inputs.forEach((d, i) => {
+      const opt       = document.createElement('option')
+      opt.value       = d.deviceId
+      opt.textContent = d.label || `Mic ${i+1}`
+      const name      = (d.label || '').toLowerCase()
+      if (name.includes('capture') || name.includes('hdmi') || name.includes('digital audio interface')) {
+        opt.selected = true
+      }
+      sel.appendChild(opt)
+    })
+  } catch(e) {
+    console.log('Device enum:', e.message)
+  }
+}
+
+async function toggleMic() {
+  if (isListening) stopListening()
+  else await startListening()
+}
+
+async function switchDevice() {
+  if (isListening) {
+    stopListening()
+    await startListening()
+  }
+}
+
+async function startListening() {
+  try {
+    const sel        = document.getElementById('devSelect')
+    const selectedId = sel ? sel.value : ''
+    const constraints = {
+      audio: selectedId
+        ? { deviceId: { exact: selectedId }, echoCancellation: false, noiseSuppression: false }
+        : true,
+      video: false
+    }
+
+    activeStream    = await navigator.mediaDevices.getUserMedia(constraints)
+    audioContext    = new (window.AudioContext || window.webkitAudioContext)()
+    streamSource    = audioContext.createMediaStreamSource(activeStream)
+    scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1)
+
+    // FIX #3: fresh state — flush lock reset
+    collectedChunks = []
+    isFlushLocked   = false
+
+    // FIX #2: mediaRecorder reference capture karo, ondataavailable mein null check lagao
+    const recorder = new MediaRecorder(activeStream, { mimeType: 'audio/webm;codecs=opus' })
+    mediaRecorder  = recorder
+
+    recorder.ondataavailable = (e) => {
+      // FIX #2: agar recorder already replaced/nulled ho toh ignore karo
+      if (recorder !== mediaRecorder && !isListening) return
+      if (e.data.size > 0) collectedChunks.push(e.data)
+    }
+    recorder.start(250)
+
+    streamSource.connect(scriptProcessor)
+    scriptProcessor.connect(audioContext.destination)
+
+    // FIX #1: 3-state VAD — silent / speaking / endingSpeech
+    vadState = 'silent'
+
+    scriptProcessor.onaudioprocess = (e) => {
+      const buffer = e.inputBuffer.getChannelData(0)
+      let sum = 0
+      for (let i = 0; i < buffer.length; i++) sum += buffer[i] * buffer[i]
+      const rms = Math.sqrt(sum / buffer.length)
+      const db  = 20 * Math.log10(rms || 0.00001)
+
+      if (db > silenceThreshold) {
+        // Voice detected
+        if (vadState === 'silent') {
+          vadState = 'speaking'
+        } else if (vadState === 'endingSpeech') {
+          // Dobara bola — silence timer cancel karo, speaking mein wapas jao
+          vadState = 'speaking'
+          if (silTimer) { clearTimeout(silTimer); silTimer = null }
+        }
+        // vadState === 'speaking' — kuch nahi karna
+      } else {
+        // Silence detected
+        if (vadState === 'speaking') {
+          vadState = 'endingSpeech'
+          silTimer = setTimeout(() => {
+            // FIX #1: timer fire hone ke baad hi silent mein wapas jao
+            vadState = 'silent'
+            silTimer = null
+            flushAndTranscribe()
+          }, 1800)
+        }
+        // vadState === 'silent' ya 'endingSpeech' — kuch nahi karna
+      }
+    }
+
+    isListening = true
+    updateMicUI(true)
+    setStatus('LISTENING', 'listening')
+    showToast('Auto Audio Pipeline Live')
+
+  } catch(err) {
+    console.error('Mic start:', err)
+    showToast('Capture card access denied', true)
+  }
+}
+
+function stopListening() {
+  // FIX #1: VAD reset
+  vadState = 'silent'
+  if (silTimer) { clearTimeout(silTimer); silTimer = null }
+
+  if (scriptProcessor) { scriptProcessor.disconnect(); scriptProcessor = null }
+  if (streamSource)    { streamSource.disconnect(); streamSource = null }
+  if (audioContext)    { audioContext.close(); audioContext = null }
+
+  // FIX #2: mediaRecorder ko null karo pehle, phir stop() call karo
+  // taaki ondataavailable zyada chunks add na kare
+  const recRef = mediaRecorder
+  mediaRecorder = null
+  if (recRef && recRef.state !== 'inactive') {
+    try { recRef.stop() } catch(e) {}
+  }
+
+  if (activeStream) { activeStream.getTracks().forEach(t => t.stop()); activeStream = null }
+
+  isListening     = false
+  collectedChunks = []
+  isFlushLocked   = false
+  updateMicUI(false)
+  setStatus('READY', '')
+}
+
+// FIX #3: flush lock — concurrent flushes prevent karo
+function flushAndTranscribe() {
+  if (isFlushLocked) return
+  if (collectedChunks.length === 0) return
+
+  isFlushLocked = true
+  // FIX #3: chunks copy karo, phir array clear karo aur lock release timer set karo
+  const chunks    = collectedChunks.slice()
+  collectedChunks = []
+
+  processAudioBlob(new Blob(chunks, { type: 'audio/webm' }))
+    .finally(() => { isFlushLocked = false })
+}
+
+async function processAudioBlob(blob) {
+  if (blob.size < 500) return
+  setStatus('TRANSCRIBING...', 'transcribing')
+  try {
+    const text = await transcribeBlob(blob)
+    if (text && text.trim().length > 3) {
+      await processQuestion(text.trim())
+    } else {
+      if (isListening) setStatus('LISTENING', 'listening')
+    }
+  } catch(e) {
+    console.error('Transcribe:', e)
+    if (isListening) setStatus('LISTENING', 'listening')
+  }
+}
+
+async function transcribeBlob(blob) {
+  const key = getNextKey()
+  if (!key) { showToast('Add Groq key in Settings', true); return '' }
+  const fd = new FormData()
+  fd.append('file', blob, 'audio.webm')
+  fd.append('model', 'whisper-large-v3-turbo')
+
+  const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + key },
+    body: fd
+  })
+  if (!r.ok) throw new Error('Whisper HTTP ' + r.status)
+  const d = await r.json()
+  return d.text || ''
+}
+
+// ═══════════════════════════════════════════
+// ANSWER GENERATION
+// ═══════════════════════════════════════════
+async function processQuestion(question) {
+  isProcessing = true
+
+  // FIX: naya answer aane par purana gayab nahi hoga — stack mein upar chala jayega
+  archivePreviousAnswer()
+
+  lastQ = question
+
+  setEl('qText', question)
+  setEl('aText', '')
+  answerBuf = ''
+
+  const cursorEl = document.getElementById('cursor')
+  const retryEl  = document.getElementById('retryBtn')
+  if (cursorEl) cursorEl.classList.remove('hidden')
+  if (retryEl)  retryEl.classList.remove('visible')
+
+  // Naya answer start hote hi aWrap bottom pe scroll + aText visible karo
+  const aWrapEl = document.getElementById('aWrap')
+  const aTextEl = document.getElementById('aText')
+  if (aWrapEl) { aWrapEl.scrollTop = aWrapEl.scrollHeight }
+  if (aTextEl) { aTextEl.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
+
+  setStatus('GENERATING...', 'generating')
+  renderAnswer('')
+
+  const msgs = buildMessages(question)
+  let ok = false
+
+  // Round 1: try all available keys
+  const keys = getAvailableKeys()
+  for (const key of keys) {
+    try {
+      await streamAnswer(key, 'https://api.groq.com/openai/v1/chat/completions', 'llama-3.3-70b-versatile', msgs)
+      ok = true; break
+    } catch(e) {
+      if (e.message.includes('429')) { markRateLimited(key); continue }
+      console.error('Groq stream:', e)
+      break
+    }
+  }
+
+  // Round 2: agar sabhi 429 the — 6 sec baad rateLimited clear karke ek aur try
+  if (!ok) {
+    const allLimited = groqKeys.filter(k=>k).every(k => rateLimited.has(k))
+    if (allLimited) {
+      setStatus('RATE LIMITED — retry in 6s…', 'transcribing')
+      showToast('All keys hit limit — retrying in 6s…')
+      await new Promise(r => setTimeout(r, 6000))
+      rateLimited.clear(); validKeyIdx = 0
+      const retryKey = getNextKey()
+      if (retryKey) {
+        try {
+          await streamAnswer(retryKey, 'https://api.groq.com/openai/v1/chat/completions', 'llama-3.3-70b-versatile', msgs)
+          ok = true
+        } catch(e2) { console.error('Groq retry:', e2) }
+      }
+    }
+  }
+
+  if (!ok && openaiKey) {
+    try {
+      await streamAnswer(openaiKey, 'https://api.openai.com/v1/chat/completions', 'gpt-4o-mini', msgs)
+      ok = true
+    } catch(e) { console.error('OpenAI fallback:', e) }
+  }
+
+  if (cursorEl) cursorEl.classList.add('hidden')
+  isProcessing = false
+
+  if (ok) {
+    lastA = answerBuf
+    addToHistory(question, answerBuf)
+
+    if (isListening) {
+      stopListening()
+      // Proper wait for AudioContext close + new stream init
+      await new Promise(r => setTimeout(r, 500))
+      try { await startListening() } catch(e) { console.error('Restart listen:', e) }
+    } else {
+      setStatus('READY', '')
+    }
+    adjustHeight()
+  } else {
+    setStatus('ERROR', 'error')
+    if (retryEl) retryEl.classList.add('visible')
+    showToast('API error — check keys', true)
+  }
+}
+
+async function streamAnswer(apiKey, url, model, messages) {
+  const wordLimit = maxWords || 150
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model, stream: true, max_tokens: Math.round(wordLimit * 1.5), messages })
+  })
+  if (r.status === 429) throw new Error('429')
+  if (!r.ok) { const b = await r.text(); throw new Error('HTTP ' + r.status + ' ' + b.slice(0,120)) }
+
+  const reader  = r.body.getReader()
+  const decoder = new TextDecoder()
+  let   buf     = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buf += decoder.decode(value, { stream: true })
+    const lines = buf.split('\n')
+    buf = lines.pop()
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue
+      const data = line.slice(6).trim()
+      if (data === '[DONE]') {
+        flushStreamRender()
+        try { ipcRenderer.send('save-to-db', { question: lastQ, answer: answerBuf }) } catch(e) {}
+        return
+      }
+      try {
+        const chunk = JSON.parse(data)
+        const tok   = chunk.choices?.[0]?.delta?.content || ''
+        if (tok) {
+          answerBuf += tok
+          scheduleStreamRender()
+        }
+      } catch(e) {}
+    }
+  }
+
+  // FIX: stream khatam hone par final state turant (bina rAF wait) flush karo
+  flushStreamRender()
+}
+
+// FIX: ek hi animation frame mein jitne bhi tokens aaye, unko ek saath
+// render karo — isse har token par alag DOM reflow/scroll-jump (jhatka)
+// nahi hota, answer Cluely jaisa smoothly grow hota hai
+function scheduleStreamRender() {
+  if (renderScheduled) return
+  renderScheduled = true
+  requestAnimationFrame(() => {
+    renderScheduled = false
+    flushStreamRender()
+  })
+}
+
+function flushStreamRender() {
+  renderAnswer(answerBuf)
+  const w = document.getElementById('aWrap')
+  if (w) w.scrollTop = w.scrollHeight
+  // Ensure aText always visible during streaming
+  const aT = document.getElementById('aText')
+  if (aT && w) {
+    const atBottom = w.scrollHeight - w.scrollTop - w.clientHeight < 120
+    if (atBottom) w.scrollTop = w.scrollHeight
+  }
+}
+
+// FIX: purana Q&A ko stack mein daal do taaki naya answer aane par wo gayab
+// na ho — bas upar chala jaye, scroll karke wapas dekha ja sake
+function archivePreviousAnswer() {
+  const stack = document.getElementById('qaStack')
+  const aText = document.getElementById('aText')
+  if (!stack || !aText) return
+  if (!lastQ || !aText.innerHTML.trim()) return  // pehla question hai, archive karne ko kuch nahi
+
+  // Cluely-style divider — only if stack already has items
+  if (stack.children.length > 0) {
+    const divLbl = document.createElement('div')
+    divLbl.className = 'qa-divider-label'
+    const now = new Date()
+    const t = now.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})
+    divLbl.innerHTML = `<span>· · · ${t} · · ·</span>`
+    stack.appendChild(divLbl)
+  }
+
+  const item = document.createElement('div')
+  item.className = 'qa-item'
+
+  const qEl = document.createElement('div')
+  qEl.className   = 'qa-item-q'
+  qEl.textContent = lastQ
+
+  const aEl = document.createElement('div')
+  aEl.className  = 'qa-item-a'
+  aEl.innerHTML  = aText.innerHTML  // pehle se sanitized HTML hai (renderAnswer se)
+
+  item.appendChild(qEl)
+  item.appendChild(aEl)
+  stack.appendChild(item)
+}
+
+function renderAnswer(text) {
+  const el = document.getElementById('aText')
+  if (!el) return
+  if (!text) { el.innerHTML = ''; return }
+
+  // FIX #6: Safe DOM rendering — innerHTML sirf sanitized content ke liye
+  let html = escHtml(text)
+
+  // Code blocks
+  html = html.replace(/```[\s\S]*?```/g, m => {
+    const code = m.slice(3, -3).replace(/^[a-z]*\n/, '')
+    return `<span class="md-code">${code}</span>`
+  })
+  // Inline code
+  html = html.replace(/`([^`]+)`/g, '<span class="md-inline">$1</span>')
+  // Bold (v22 mein bhi theek tha, confirm)
+  html = html.replace(/\*\*(.+?)\*\*/g, '<span class="md-bold">$1</span>')
+  // List items
+  html = html.replace(/^[\s]*[-*•]\s(.+)/gm, '<span class="md-li">$1</span>')
+  // Newlines
+  html = html.replace(/\n/g, '<br>')
+
+  el.innerHTML = html
+}
+
+function buildMessages(question) {
+  const persona = personaTpl || getDefaultPersona()
+  const msgs    = [{ role: 'system', content: persona }]
+  const recent  = history.slice(-4)
+  for (const h of recent) {
+    msgs.push({ role: 'user',      content: h.q })
+    msgs.push({ role: 'assistant', content: h.a })
+  }
+  msgs.push({ role: 'user', content: question })
+  return msgs
+}
+
+// ═══════════════════════════════════════════
+// FIX #11: SCREENSHOT — multi-monitor picker
+// ═══════════════════════════════════════════
+async function triggerScreenshot() {
+  if (isProcessing) { showToast('Busy…'); return }
+  const key = getNextKey()
+  if (!key) { showToast('Add Groq key first', true); return }
+
+  setStatus('CAPTURING...', 'transcribing')
+  try {
+    // fast-path: primary screen direct
+    const src = await ipcRenderer.invoke('capture-full-screen')
+    if (src) {
+      await processScreenSource(src, key)
+      return
+    }
+    const sources = await ipcRenderer.invoke('get-screen-sources')
+    if (!sources?.length) { showToast('No screen found', true); setStatus('READY',''); return }
+
+    if (sources.length === 1) {
+      // single monitor — seedha process karo
+      await processScreenSource(sources[0], key)
+    } else {
+      // FIX #11: multi-monitor — user ko choose karne do
+      openScreenPicker(sources, key)
+    }
+  } catch(e) {
+    console.error('Screenshot OCR:', e)
+    showToast('Screenshot failed: ' + e.message, true)
+    setStatus('READY', '')
+  }
+}
+
+function openScreenPicker(sources, key) {
+  const picker  = document.getElementById('screenPicker')
+  const spList  = document.getElementById('spList')
+  if (!picker || !spList) return
+
+  spList.innerHTML = ''
+  sources.forEach((src, idx) => {
+    const item = document.createElement('div')
+    item.className = 'sp-item'
+    item.innerHTML = `
+      <img class="sp-thumb" src="${escHtml(src.thumbnail)}" alt="">
+      <span class="sp-name">${escHtml(src.name || 'Screen ' + (idx+1))}</span>
+    `
+    item.onclick = async () => {
+      closeScreenPicker()
+      await processScreenSource(src, key)
+    }
+    spList.appendChild(item)
+  })
+
+  picker.classList.add('visible')
+}
+
+function closeScreenPicker() {
+  const picker = document.getElementById('screenPicker')
+  if (picker) picker.classList.remove('visible')
+  setStatus('READY', '')
+}
+
+async function processScreenSource(source, _key) {
+  showScreenOverlay(true)
+  setStatus('ANALYZING...', 'transcribing')
+  try {
+    const b64 = source.thumbnail.split(',')[1]
+    const keys = getAvailableKeys()
+    let extracted = null
+
+    for (const key of keys) {
+      try {
+        const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+            max_tokens: 500,
+            messages: [{
+              role: 'user',
+              content: [
+                { type: 'text', text: 'Analyze this screenshot from a technical interview. Extract the visible interview question, coding problem, or technical task. Include code if shown. If no question visible, return: NONE. Return only the extracted text.'},
+                { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + b64 } }
+              ]
+            }]
+          })
+        })
+        if (r.status === 429) { markRateLimited(key); continue }
+        if (!r.ok) throw new Error('HTTP ' + r.status)
+        const data = await r.json()
+        extracted = data.choices?.[0]?.message?.content?.trim()
+        break
+      } catch(e) {
+        if (e.message.includes('429')) { markRateLimited(key); continue }
+        throw e
+      }
+    }
+
+    showScreenOverlay(false)
+    if (extracted && extracted !== 'NONE' && extracted.length > 5) {
+      await processQuestion(extracted)
+    } else {
+      showToast('No question found on screen', true)
+      setStatus('READY', '')
+    }
+  } catch(e) {
+    showScreenOverlay(false)
+    console.error('processScreenSource:', e)
+    showToast('OCR failed: ' + e.message, true)
+    setStatus('READY', '')
+  }
+}
+
+// ═══════════════════════════════════════════
+// UI HELPERS
+// ═══════════════════════════════════════════
+function setStatus(text, cls) {
+  const el = document.getElementById('statusBadge')
+  if (!el) return
+  el.textContent = text
+  el.className   = cls || ''
+}
+
+function showToast(msg, isErr = false) {
+  const el = document.getElementById('toast')
+  if (!el) return
+  el.textContent = msg
+  el.className   = 'show' + (isErr ? ' err' : '')
+  if (toastTimer) clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => { el.className = isErr ? 'err' : '' }, 2400)
+}
+
+function setEl(id, text) {
+  const el = document.getElementById(id)
+  if (el) el.textContent = text
+}
+
+function escHtml(s) {
+  if (typeof s !== 'string') return ''
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+}
+
+function updateMicUI(active) {
+  const lbl = document.getElementById('micLbl')
+  const btn = document.getElementById('micBtn')
+  if (lbl) lbl.textContent = active ? 'Stop' : 'Listen'
+  if (btn) btn.className   = active ? 'cbtn active' : 'cbtn'
+}
+
+function setOpacity(val) {
+  ipcRenderer.send('set-opacity', val / 100)
+}
+
+// FIX #7: adjustHeight — actual DOM measurements use karo, hardcoded values nahi
+function adjustHeight() {
+  const aWrap = document.getElementById('aWrap')
+  if (!aWrap || aWrap.style.display === 'none') return
+  const aText = document.getElementById('aText')
+  if (!aText) return
+
+  const titlebar  = document.getElementById('titlebar')
+  const controls  = document.getElementById('controls')
+  const qWrap     = document.getElementById('qWrap')
+  const inputRow  = document.getElementById('inputRow')
+
+  const tbH  = titlebar?.offsetHeight  || 38
+  const ctH  = controls?.offsetHeight  || 34
+  const qH   = qWrap?.offsetHeight     || 26
+  const irH  = inputRow?.offsetHeight  || 34
+  const pad  = 32  // aWrap padding top+bottom
+
+  const contentH = aText.scrollHeight + pad
+  const total    = tbH + ctH + qH + irH + contentH
+
+  ipcRenderer.send('resize-window', { width: 540, height: Math.min(Math.max(total, 260), 750) })
+}
+
+function cycleFontSize() {
+  fontSizeIdx = (fontSizeIdx + 1) % fontSizes.length
+  const newSize = fontSizes[fontSizeIdx]
+  document.documentElement.style.setProperty('--fs', newSize)
+  const btn = document.getElementById('fsBtn')
+  if (btn) btn.textContent = newSize
+  showToast('Font: ' + newSize)
+  setTimeout(() => adjustHeight(), 30)
+}
+
+function copyAnswer() {
+  if (!lastA) { showToast('No answer yet', true); return }
+  ipcRenderer.send('copy-text', lastA)
+  showToast('Copied ✓')
+}
+
+function retryLast() {
+  if (!lastQ) return
+  processQuestion(lastQ)
+}
+
+function clearAll() {
+  setEl('qText', '')
+  setEl('aText', '')
+  const stack = document.getElementById('qaStack')
+  if (stack) stack.innerHTML = ''
+  lastQ = ''
+  lastA = ''
+  answerBuf = ''
+  const retryEl = document.getElementById('retryBtn')
+  if (retryEl) retryEl.classList.remove('visible')
+  setStatus('READY', '')
+  adjustHeight()
+}
+
+// ═══════════════════════════════════════════
+// HISTORY (FIX #12: localStorage persist)
+// ═══════════════════════════════════════════
+const HIST_KEY = 'kabir_v23_history'
+
+function loadHistory() {
+  try {
+    const raw = localStorage.getItem(HIST_KEY)
+    if (raw) history = JSON.parse(raw) || []
+    if (history.length > 30) history = history.slice(-30)
+  } catch(e) {
+    history = []
+  }
+}
+
+function saveHistory() {
+  try {
+    const trimmed = history.slice(-30)
+    localStorage.setItem(HIST_KEY, JSON.stringify(trimmed))
+  } catch(e) {
+    console.error('saveHistory:', e)
+  }
+}
+
+function addToHistory(q, a) {
+  const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  history.push({ q, a, t })
+  if (history.length > 30) history.shift()
+  saveHistory()  // FIX #12: har entry ke baad persist karo
+}
+
+function toggleHistory() {
+  isHistVisible = !isHistVisible
+  const p    = document.getElementById('histPanel')
+  const a    = document.getElementById('aWrap')
+  const hBtn = document.getElementById('histBtn')
+  if (!p || !a) return
+
+  if (isHistVisible) {
+    p.classList.add('visible')
+    a.style.display = 'none'
+    if (hBtn) hBtn.classList.add('on')
+    renderHistory()
+  } else {
+    p.classList.remove('visible')
+    a.style.display = 'block'
+    if (hBtn) hBtn.classList.remove('on')
+    adjustHeight()
+  }
+}
+
+function renderHistory() {
+  const p = document.getElementById('histPanel')
+  if (!p) return
+  // FIX #6: innerHTML nahi, safe DOM manipulation
+  p.innerHTML = ''
+
+  if (!history.length) {
+    const empty = document.createElement('div')
+    empty.style.cssText = 'color:var(--muted);font-size:11px;text-align:center;margin-top:20px;'
+    empty.textContent = 'No session history yet'
+    p.appendChild(empty)
+    return
+  }
+
+  for (let i = history.length - 1; i >= 0; i--) {
+    const h   = history[i]
+    const div = document.createElement('div')
+    div.className = 'hi'
+
+    const qEl = document.createElement('div')
+    qEl.className   = 'hi-q'
+    qEl.textContent = h.q
+    qEl.onclick     = () => loadHistItem(i)
+
+    const aEl = document.createElement('div')
+    aEl.className   = 'hi-a'
+    aEl.textContent = (h.a || '').slice(0, 140) + (h.a?.length > 140 ? '…' : '')
+
+    const tEl = document.createElement('div')
+    tEl.className   = 'hi-t'
+    tEl.textContent = h.t
+
+    div.appendChild(qEl)
+    div.appendChild(aEl)
+    div.appendChild(tEl)
+    p.appendChild(div)
+  }
+}
+
+function loadHistItem(idx) {
+  const h = history[idx]
+  if (!h) return
+  toggleHistory()
+  lastQ = h.q
+  lastA = h.a
+  setEl('qText', h.q)
+  renderAnswer(h.a)
+  adjustHeight()
+}
+
+function openSettings() {
+  if (isSettVisible) return
+  isSettVisible = true
+  const panel = document.getElementById('settPanel')
+  const btn   = document.getElementById('settBtn')
+  if (panel) panel.classList.add('visible')
+  if (btn) btn.classList.add('on')
+  loadSettings()
+}
+
+function closeSettings() {
+  if (!isSettVisible) return
+  isSettVisible = false
+  const panel = document.getElementById('settPanel')
+  const btn   = document.getElementById('settBtn')
+  if (panel) panel.classList.remove('visible')
+  if (btn) btn.classList.remove('on')
+}
+
+function toggleSettings() {
+  if (isSettVisible) closeSettings()
+  else openSettings()
+}
+
+function submitManual() {
+  const el = document.getElementById('manIn')
+  if (!el) return
+  const v = el.value.trim()
+  if (!v || isProcessing) return
+  el.value = ''
+  processQuestion(v)
+}
+</script>
+</body>
+</html>
